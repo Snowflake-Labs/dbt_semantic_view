@@ -27,3 +27,5 @@ models:
   - name: semantic_view_with_calc_name_copy_grants
     config:
       copy_grants: true
+  - name: table_downstream_of_semantic_view
+    description: "Table that references a semantic view to test column introspection and lineage tracking"

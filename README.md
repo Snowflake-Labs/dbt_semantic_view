@@ -93,6 +93,9 @@ CREATE OR REPLACE SEMANTIC VIEW <name>
 
 We plan to revisit persist_docs support as upstream capabilities evolve.
 
+### Column Introspection Handling
+This package includes a custom `get_columns_in_relation` macro that properly handles Semantic Views. Unlike regular tables and views, Semantic Views cannot be described using standard `DESCRIBE TABLE` commands. The package automatically detects Semantic Views and returns an empty column list for them, while preserving standard behavior for all other relation types. This prevents the "Invalid object type: 'TABLE'" error when dbt attempts to introspect Semantic Views.
+
 ### Development
 - Python 3.9+ recommended
 - Use a venv: `python3 -m venv .venv && source .venv/bin/activate`
