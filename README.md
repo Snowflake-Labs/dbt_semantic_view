@@ -62,9 +62,39 @@ TABLES(
 [ FACTS ( semanticExpression [ , ... ] ) ]
 [ DIMENSIONS ( semanticExpression [ , ... ] ) ]
 [ METRICS ( semanticExpression [ , ... ] ) ]
+[ WITH EXTENSION ( CA = '<json>' ) ]
 [ COMMENT = '<comment>' ]
 [ COPY GRANTS ]
 ```
+
+#### Verified queries (Cortex Analyst extension)
+Snowflake Semantic Views can store “verified queries” in the `CA` extension. This package supports a `verified_queries` model config that will append a `WITH EXTENSION (CA = '<json>')` clause at materialization time.
+
+Example:
+```
+{{ config(
+    materialized='semantic_view',
+    verified_queries=[
+      {
+        "name": "Orders by day",
+        "question": "How many orders per day?",
+        "sql": "select * from orders_by_day"
+      },
+      {
+        "name": "Revenue by month",
+        "question": "What is revenue by month?",
+        "sql": "select * from revenue_by_month"
+      }
+    ]
+) }}
+
+TABLES(...)
+DIMENSIONS(...)
+METRICS(...)
+```
+
+Notes:
+- If your model SQL already includes a `WITH EXTENSION (...)` clause, this package will **not** attempt to merge extensions.
 
 Reference a Semantic View from another model:
 ```

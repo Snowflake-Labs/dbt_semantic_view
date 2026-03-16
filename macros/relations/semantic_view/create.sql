@@ -32,6 +32,26 @@
 {%- endmacro %}
 
 
+{% macro append_ca_extension_if_missing(sql, ca_json) -%}
+  {%- set s = (sql | trim) -%}
+  {%- if not s -%}
+    {{- s -}}
+  {%- else -%}
+    {%- set had_semicolon = (s[-1:] == ';') -%}
+    {%- if had_semicolon -%}
+      {%- set s = (s[:-1] | trim) -%}
+    {%- endif -%}
+
+    {# If the model SQL already includes a WITH EXTENSION clause, do not try to merge. #}
+    {%- if 'with extension' in (s | lower) -%}
+      {{- s -}}
+    {%- else -%}
+      {%- set out = s ~ "\nWITH EXTENSION (CA = '" ~ ca_json ~ "')" -%}
+      {{- out -}}
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
 {% macro append_copy_grants_if_missing(sql) -%}
   {%- set s = (sql | trim) -%}
   {%- set had_semicolon = (s[-1:] == ';') -%}
@@ -59,6 +79,7 @@
   {%- set identifier = model['alias'] -%}
 
   {%- set copy_grants = config.get('copy_grants', default=false) -%}
+  {%- set verified_queries = config.get('verified_queries', default=none) -%}
 
   {%- set target_relation = api.Relation.create(
       identifier=identifier, schema=schema, database=database,
@@ -66,6 +87,11 @@
 
   {%- if copy_grants -%}
     {%- set sql = dbt_semantic_view.append_copy_grants_if_missing(sql) -%}
+  {%- endif -%}
+
+  {%- if verified_queries is not none -%}
+    {%- set ca_json = {'verified_queries': verified_queries} | tojson -%}
+    {%- set sql = dbt_semantic_view.append_ca_extension_if_missing(sql, ca_json) -%}
   {%- endif -%}
 
   {{ run_hooks(pre_hooks) }}
