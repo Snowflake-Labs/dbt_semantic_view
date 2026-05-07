@@ -2,6 +2,13 @@
 
 Professional dbt macros and integration tests for building, dropping, and renaming Snowflake Semantic Views. This package lets you materialize Semantic Views via dbt and reference them from downstream models.
 
+### Compatibility
+
+> **Full SQL API coverage** — This package automatically supports the complete Snowflake `CREATE SEMANTIC VIEW` SQL syntax. When Snowflake introduces new semantic view capabilities, the package picks them up without requiring any code change or package upgrade. Simply update your model definition to use the new syntax and run `dbt build`.
+>
+> For the full syntax reference, see [CREATE SEMANTIC VIEW](https://docs.snowflake.com/en/sql-reference/sql/create-semantic-view#syntax).
+
+
 ### At a glance
 - **Materialization**: `semantic_view`
 - **Warehouse**: Snowflake
@@ -49,6 +56,7 @@ Add to `packages.yml`:
 ```
 packages:
   - package: Snowflake-Labs/dbt_semantic_view
+    verion: <latest version/your selected version>
 ```
 
 Create a model using the Semantic View materialization:
