@@ -13,17 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-{% materialization semantic_view, adapter='snowflake' -%}
-
-    {% set original_query_tag = set_query_tag() %}
-    {% do dbt_semantic_view.snowflake__create_or_replace_semantic_view() %}
-
-    {% set target_relation = this.incorporate(type='view') %}
-
-    {# persist_docs is now handled within the create macro for semantic views #}
-
-    {% do unset_query_tag(original_query_tag) %}
-
-    {% do return({'relations': [target_relation]}) %}
-
-{%- endmaterialization %}
+-- Test that persist_docs adds the model description as a COMMENT
+select 'persist_docs comment missing' as error_message
+where position('comment=' in lower(get_ddl('SEMANTIC_VIEW', '{{ ref('semantic_view_with_persist_docs') }}'))) = 0
+   or position('this semantic view tests persist_docs functionality' in lower(get_ddl('SEMANTIC_VIEW', '{{ ref('semantic_view_with_persist_docs') }}'))) = 0

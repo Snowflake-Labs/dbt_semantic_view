@@ -86,10 +86,37 @@ from semantic_view(
 )
 ```
 
-### Note on documentation persistence (persist_docs)
-At this time, dbt-driven documentation persistence for Semantic Views (persist_docs) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
+### Documentation persistence (persist_docs)
+This package supports dbt-driven documentation persistence for Semantic Views through the `persist_docs` configuration. When enabled, model descriptions from `schema.yml` will be automatically added as `COMMENT` clauses to the Semantic View DDL.
 
-Inline COMMENT syntax within the Semantic View DDL is supported and will be applied by Snowflake. For example:
+To enable persist_docs for relation-level comments:
+```yaml
+# In your model config
+{{ config(
+    materialized='semantic_view',
+    persist_docs={'relation': true}
+) }}
+```
+
+Or in `dbt_project.yml`:
+```yaml
+models:
+  your_project:
+    +persist_docs:
+      relation: true
+```
+
+When persist_docs is enabled, the model description from `schema.yml` will be applied:
+```yaml
+# schema.yml
+models:
+  - name: my_semantic_view
+    description: "This description will become a COMMENT"
+```
+
+**Note**: Column-level persist_docs is not supported as Semantic Views use DIMENSIONS, METRICS, and FACTS rather than traditional columns.
+
+Inline COMMENT syntax within the Semantic View DDL is also supported:
 ```
 CREATE OR REPLACE SEMANTIC VIEW <name>
   TABLES ( ... COMMENT = '...' )
@@ -99,7 +126,23 @@ CREATE OR REPLACE SEMANTIC VIEW <name>
   [ COMMENT = '...' ]
 ```
 
-We plan to revisit persist_docs support as upstream capabilities evolve.
+#### Column-level comments from schema.yml
+This package provides utility macros to automatically add column-level comments from `schema.yml` descriptions to Semantic View elements:
+
+```sql
+{{ config(materialized='semantic_view') }}
+TABLES ( t1 AS {{ ref('my_model') }} )
+DIMENSIONS (
+  t1.customer_id AS customer_id {{ dbt_semantic_view.get_column_comment('my_model', 'customer_id') }},
+  t1.order_date AS order_date {{ dbt_semantic_view.get_column_comment('my_model', 'order_date') }}
+)
+FACTS (
+  t1.amount AS amount {{ dbt_semantic_view.get_column_comment('my_model', 'amount') }}
+)
+COMMENT = '{{ dbt_semantic_view.get_model_comment("my_model") }}'
+```
+
+These macros will automatically extract descriptions from your `schema.yml` and apply them as `COMMENT` clauses.
 
 ### Development
 - Python 3.9+ recommended

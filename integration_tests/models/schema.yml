@@ -27,3 +27,5 @@ models:
   - name: semantic_view_with_calc_name_copy_grants
     config:
       copy_grants: true
+  - name: semantic_view_with_persist_docs
+    description: "This semantic view tests persist_docs functionality"
