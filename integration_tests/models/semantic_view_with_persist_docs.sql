@@ -13,17 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-{% materialization semantic_view, adapter='snowflake' -%}
+{{ config(
+    materialized='semantic_view',
+    persist_docs={'relation': true}
+) }}
 
-    {% set original_query_tag = set_query_tag() %}
-    {% do dbt_semantic_view.snowflake__create_or_replace_semantic_view() %}
-
-    {% set target_relation = this.incorporate(type='view') %}
-
-    {# persist_docs is now handled within the create macro for semantic views #}
-
-    {% do unset_query_tag(original_query_tag) %}
-
-    {% do return({'relations': [target_relation]}) %}
-
-{%- endmaterialization %}
+TABLES(t1 AS {{ ref('base_table') }}, t2 as {{ source('seed_sources', 'base_table2') }})
+DIMENSIONS(t1.count as value, t2.volume as value)
+METRICS(t1.total_rows AS SUM(t1.count), t2.max_volume as max(t2.volume))

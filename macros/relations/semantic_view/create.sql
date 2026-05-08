@@ -32,6 +32,30 @@
 {%- endmacro %}
 
 
+{% macro append_comment_if_missing(sql, comment) -%}
+  {%- if not comment -%}
+    {{ sql }}
+  {%- else -%}
+    {%- set s = (sql | trim) -%}
+    {%- set had_semicolon = (s[-1:] == ';') -%}
+    {%- if had_semicolon -%}
+      {%- set s = (s[:-1] | trim) -%}
+    {%- endif -%}
+
+    {# detect existing COMMENT at the end, case-insensitive #}
+    {%- set has_comment = 'comment=' in (s | lower) -%}
+
+    {%- if has_comment -%}
+      {%- set out = s -%}
+    {%- else -%}
+      {%- set out = s ~ "\nCOMMENT='" ~ comment ~ "'" -%}
+    {%- endif -%}
+
+    {{- out -}}
+  {%- endif -%}
+{%- endmacro %}
+
+
 {% macro append_copy_grants_if_missing(sql) -%}
   {%- set s = (sql | trim) -%}
   {%- set had_semicolon = (s[-1:] == ';') -%}
@@ -59,11 +83,21 @@
   {%- set identifier = model['alias'] -%}
 
   {%- set copy_grants = config.get('copy_grants', default=false) -%}
+  {%- set persist_docs = config.get('persist_docs', {}) -%}
+  {%- set relation_comment = none -%}
+  
+  {%- if persist_docs.get('relation', false) and model.description -%}
+    {%- set relation_comment = model.description -%}
+  {%- endif -%}
 
   {%- set target_relation = api.Relation.create(
       identifier=identifier, schema=schema, database=database,
       type='view') -%}
 
+  {%- if relation_comment -%}
+    {%- set sql = dbt_semantic_view.append_comment_if_missing(sql, relation_comment) -%}
+  {%- endif -%}
+  
   {%- if copy_grants -%}
     {%- set sql = dbt_semantic_view.append_copy_grants_if_missing(sql) -%}
   {%- endif -%}
