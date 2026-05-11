@@ -8,7 +8,6 @@ Professional dbt macros and integration tests for building, dropping, and renami
 >
 > For the full syntax reference, see [CREATE SEMANTIC VIEW](https://docs.snowflake.com/en/sql-reference/sql/create-semantic-view#syntax).
 
-
 ### At a glance
 - **Materialization**: `semantic_view`
 - **Warehouse**: Snowflake
@@ -17,13 +16,13 @@ Professional dbt macros and integration tests for building, dropping, and renami
 ### Quickstart
 Follow these steps on macOS/Linux with Python 3 installed. No prior dbt installation is required.
 
-1) Clone and enter the repo
+1. Clone and enter the repo
 ```
 git clone https://github.com/Snowflake-Labs/dbt_semantic_view.git
 cd dbt_semantic_view/
 ```
 
-2) Create an isolated Python environment and install dependencies
+2. Create an isolated Python environment and install dependencies
 ```
 python3 -m venv .venv
 source .venv/bin/activate
@@ -31,7 +30,8 @@ pip install -U pip
 pip install dbt-snowflake
 ```
 
-3) Configure Snowflake credentials (env vars)
+3. Configure Snowflake credentials (env vars)
+
 Set the following environment variables for the integration profile. For username/password auth use `SNOWFLAKE_TEST_AUTHENTICATOR=snowflake`.
 ```
 export SNOWFLAKE_TEST_ACCOUNT=<account>
@@ -44,7 +44,7 @@ export SNOWFLAKE_TEST_WAREHOUSE=<warehouse>
 export SNOWFLAKE_TEST_SCHEMA=<schema>
 ```
 
-4) Run integration tests
+4. Run integration tests
 ```
 cd integration_tests/
 dbt deps --target snowflake
@@ -56,8 +56,12 @@ Add to `packages.yml`:
 ```
 packages:
   - package: Snowflake-Labs/dbt_semantic_view
-    verion: <latest version/your selected version>
+    version: <current version>
 ```
+
+To find the current version, see the [dbt_semantic_view package page](https://hub.getdbt.com/Snowflake-Labs/dbt_semantic_view/latest/).
+
+> **Note:** This package is a direct passthrough to Snowflake's SQL layer. You don't need to update the package version to access new Snowflake semantic view features. When Snowflake adds new SQL capabilities (for example, AI_VERIFIED_QUERIES), they're available immediately through the package without any package update.
 
 Create a model using the Semantic View materialization:
 ```
@@ -87,9 +91,9 @@ from semantic_view(
 ```
 
 ### Note on documentation persistence (persist_docs)
-At this time, dbt-driven documentation persistence for Semantic Views (persist_docs) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
+At this time, dbt-driven documentation persistence for Semantic Views (`persist_docs`) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
 
-Inline COMMENT syntax within the Semantic View DDL is supported and will be applied by Snowflake. For example:
+Inline `COMMENT` syntax within the Semantic View DDL is supported and will be applied by Snowflake. For example:
 ```
 CREATE OR REPLACE SEMANTIC VIEW <name>
   TABLES ( ... COMMENT = '...' )
@@ -99,7 +103,7 @@ CREATE OR REPLACE SEMANTIC VIEW <name>
   [ COMMENT = '...' ]
 ```
 
-We plan to revisit persist_docs support as upstream capabilities evolve.
+We plan to revisit `persist_docs` support as upstream capabilities evolve.
 
 ### Development
 - Python 3.9+ recommended
