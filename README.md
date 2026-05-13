@@ -62,9 +62,9 @@ TABLES(
 [ FACTS ( semanticExpression [ , ... ] ) ]
 [ DIMENSIONS ( semanticExpression [ , ... ] ) ]
 [ METRICS ( semanticExpression [ , ... ] ) ]
-[ COMMENT = '<comment>' ]
-[ COPY GRANTS ]
+...
 ```
+for the complete list of support semantic view elements please refer to: https://docs.snowflake.com/en/sql-reference/sql/create-semantic-view#syntax
 
 Reference a Semantic View from another model:
 ```
