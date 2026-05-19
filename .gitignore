@@ -7,3 +7,4 @@ dbt_modules/
 *venv*/
 .DS_Store
 .env
+dbt_internal_packages/
