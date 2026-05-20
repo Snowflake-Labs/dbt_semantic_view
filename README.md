@@ -90,6 +90,33 @@ from semantic_view(
 )
 ```
 
+### Referencing tables with `sv_ref()` and `sv_source()`
+
+Snowflake Semantic View DDL requires bare `DATABASE.SCHEMA.IDENTIFIER` table references in `TABLES()` clauses and `semantic_view()` function calls. dbt's `--empty` flag rewrites `ref()` and `source()` into `(SELECT ... LIMIT 0)` subqueries, which breaks this syntax.
+
+`sv_ref()` and `sv_source()` render the fully-qualified identifier directly while still registering the dependency in the dbt DAG, so lineage and catalog integration work as expected.
+
+**When to use them:** only inside `TABLES()` clauses in semantic view model definitions, and inside `semantic_view()` function calls in downstream query models. Use standard `ref()` and `source()` everywhere else (normal `SELECT` statements, `WHERE` clauses, CTEs, etc.).
+
+Defining a semantic view:
+```sql
+{{ config(materialized='semantic_view') }}
+
+TABLES(t1 AS {{ dbt_semantic_view.sv_ref('base_table') }})
+DIMENSIONS(t1.count as value)
+METRICS(t1.total_rows AS SUM(t1.count))
+```
+
+Querying a semantic view from a downstream model:
+```sql
+select * from semantic_view({{ dbt_semantic_view.sv_ref('my_semantic_view') }} metrics total_rows)
+```
+
+Using a source table:
+```sql
+TABLES(t1 AS {{ dbt_semantic_view.sv_source('my_source', 'my_table') }})
+```
+
 ### Note on documentation persistence (persist_docs)
 At this time, dbt-driven documentation persistence for Semantic Views (`persist_docs`) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
 

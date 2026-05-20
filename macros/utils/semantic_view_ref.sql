@@ -1,4 +1,4 @@
--- Copyright 2025 Snowflake Inc. 
+-- Copyright 2025 Snowflake Inc.
 -- SPDX-License-Identifier: Apache-2.0
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,16 +13,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-{{ config(materialized='test') }}
+{% macro sv_ref(model_name) %}
+  {%- set rel = ref(model_name) -%}
+  {{ rel.database }}.{{ rel.schema }}.{{ rel.identifier }}
+{%- endmacro %}
 
--- Compare result of a table that refers to the raw semantic view to calling it directly
-with table_ref as (
-  select * from {{ ref('table_refer_to_raw_semantic_view') }}
-), sv as (
-  select * from semantic_view({{ dbt_semantic_view.sv_source('seed_sources', 'raw_semantic_view') }} metrics total_rows)
-)
-select 'table refer raw result does not match semantic view result' as error_message
-from table_ref, sv
-where table_ref.total_rows != sv.total_rows
-
-
+{% macro sv_source(source_name, table_name) %}
+  {%- set rel = source(source_name, table_name) -%}
+  {{ rel.database }}.{{ rel.schema }}.{{ rel.identifier }}
+{%- endmacro %}
