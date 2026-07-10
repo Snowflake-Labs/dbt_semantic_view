@@ -12,6 +12,7 @@ Professional dbt macros and integration tests for building, dropping, and renami
 - **Materialization**: `semantic_view`
 - **Warehouse**: Snowflake
 - **dbt Compatibility**: dbt 1.x
+- **Supports**: `CREATE OR ALTER`, `MAX_STALENESS`, and declarative materialization management
 
 ### Quickstart
 Follow these steps on macOS/Linux with Python 3 installed. No prior dbt installation is required.
@@ -88,6 +89,107 @@ from semantic_view(
   [ DIMENSIONS <dimension_expr> ]
   [ WHERE <predicate> ]
 )
+```
+
+### Config options
+
+All config options are set via `{{ config(...) }}` at the top of your model file.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `copy_grants` | bool | `false` | Preserve grants when the view is replaced |
+| `create_or_alter` | bool | `false` | Use `CREATE OR ALTER` instead of `CREATE OR REPLACE` — non-destructive, preserves materializations and grants across runs |
+| `sv_materializations` | string (YAML) | none | Declarative materialization spec; see below |
+
+`copy_grants` only applies to `CREATE OR REPLACE`. Snowflake does not support `COPY GRANTS` with `CREATE OR ALTER`.
+
+#### `create_or_alter`
+
+Use `CREATE OR ALTER` when your semantic view has materializations. `CREATE OR REPLACE` drops and recreates the view on every run, which silently removes all attached materializations.
+
+```sql
+{{ config(materialized='semantic_view', create_or_alter=true) }}
+
+TABLES(fact AS {{ ref('fact_sales') }})
+DIMENSIONS(fact.region as region)
+METRICS(fact.revenue AS SUM(fact.revenue_amount))
+```
+
+#### `sv_materializations`
+
+Declares one or more materializations on the semantic view. On every `dbt run` the package calls `SYSTEM$MANAGE_SEMANTIC_VIEW_MATERIALIZATIONS_FROM_YAML`, which diffs the desired state against the current state and only adds, updates, or drops what changed.
+
+The value is a YAML string matching the format accepted by the stored procedure:
+
+```sql
+{{ config(
+    materialized='semantic_view',
+    create_or_alter=true,
+    sv_materializations="""
+materializations:
+  - name: by_region_date
+    warehouse: MY_WAREHOUSE
+    dimensions:
+      - table: fact
+        name: region
+      - table: fact
+        name: date
+    metrics:
+      - table: fact
+        name: revenue
+    filter_clause: "WHERE (fact.date >= '2020-01-01')"  # optional: mutable filter — planner rewrites
+                                                         #   queries whose filter matches or is stricter
+    immutable_where: "date < '2024-01-01'"               # optional: freeze historical rows permanently
+                                                         #   out of refresh; predicate columns must be
+                                                         #   included in this materialization's dimensions
+    refresh_mode: AUTO                       # optional: AUTO (default) | INCREMENTAL | FULL
+"""
+) }}
+
+TABLES(fact AS {{ ref('fact_sales') }})
+DIMENSIONS(fact.region as region, fact.date as date)
+METRICS(fact.revenue AS SUM(fact.revenue_amount))
+MAX_STALENESS = '1 hour'
+```
+
+Use `filter_clause` for a mutable materialization filter. The value is passed through to Snowflake's
+`ADD MATERIALIZATION` statement, so include the `WHERE (...)` keyword and predicate text. Do not use a
+top-level YAML key named `where`.
+
+Use `immutable_where` for a frozen historical region. It is mutually exclusive with `filter_clause` for a
+single materialization. The predicate should reference the materialization output column name, not a
+qualified source expression, and that column must be part of the materialization's dimensions.
+
+When you need Jinja expressions inside the YAML (e.g. to inject a warehouse from the dbt profile or an environment variable), use a `{% set %}` block to build the string first:
+
+```sql
+{%- set sv_mats_yaml -%}
+materializations:
+  - name: by_region_date
+    warehouse: {{ target.warehouse }}
+    dimensions:
+      - table: fact
+        name: region
+    metrics:
+      - table: fact
+        name: revenue
+{%- endset -%}
+
+{{ config(
+    materialized='semantic_view',
+    create_or_alter=true,
+    sv_materializations=sv_mats_yaml
+) }}
+
+TABLES(fact AS {{ ref('fact_sales') }})
+DIMENSIONS(fact.region as region)
+METRICS(fact.revenue AS SUM(fact.revenue_amount))
+```
+
+To set `LOG_EVENT_LEVEL` on materializations (e.g. for event table alerting), use a `post_hook`:
+
+```sql
+post_hook=["ALTER SEMANTIC VIEW {{ this }} ALTER MATERIALIZATION my_mat SET LOG_EVENT_LEVEL = 'INFO'"]
 ```
 
 ### Note on documentation persistence (persist_docs)
