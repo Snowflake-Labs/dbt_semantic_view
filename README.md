@@ -90,6 +90,71 @@ from semantic_view(
 )
 ```
 
+### Cortex Analyst enrichments (`ca_extensions`)
+
+The `ca_extensions` macro generates the `WITH EXTENSION (CA=$$...$$)` block that enriches a semantic view for [Cortex Analyst](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst). Use it to attach **verified queries**, **custom instructions**, **relationships**, and per-table metadata without hand-writing JSON.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `verified_queries` | list of dicts | Pre-verified SQL + natural-language question pairs shown in the Cortex Analyst UI |
+| `custom_instructions` | str | Free-text instructions appended to every Cortex Analyst prompt for this view |
+| `relationships` | list of dicts | Cross-table relationship definitions |
+| `tables` | list of dicts | Per-table Cortex Analyst metadata (synonyms, filters, etc.) |
+
+**Verified query fields**
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | yes | Short label shown in the UI |
+| `question` | yes | Natural-language question this SQL answers |
+| `sql` | yes | Verified SQL (use table aliases from `TABLES(...)`, not fully-qualified names) |
+| `verified_at` | no | Unix timestamp of verification |
+| `verified_by` | no | Name of the person who verified |
+| `use_as_onboarding_question` | no | Surface this question in the onboarding flow |
+
+**Example**
+
+```sql
+{{ config(materialized='semantic_view') }}
+
+TABLES(orders AS {{ ref('orders') }})
+DIMENSIONS(orders.status AS status)
+METRICS(orders.order_count AS COUNT(*))
+
+{{ dbt_semantic_view.ca_extensions(
+    verified_queries=[
+        {
+            "name": "total orders last 30 days",
+            "question": "How many orders were placed in the last 30 days?",
+            "sql": "SELECT COUNT(*) AS order_count FROM orders WHERE order_date >= CURRENT_DATE - 30",
+            "verified_at": 1733356800,
+            "verified_by": "Jane Smith",
+            "use_as_onboarding_question": true
+        }
+    ],
+    custom_instructions="Always filter to completed orders unless the user specifies otherwise."
+) }}
+```
+
+This renders as:
+
+```sql
+CREATE OR REPLACE SEMANTIC VIEW <name>
+TABLES(orders AS ...)
+DIMENSIONS(orders.status AS status)
+METRICS(orders.order_count AS COUNT(*))
+with extension (CA=$$
+{
+  "verified_queries": [{"name": "total orders last 30 days", ...}],
+  "custom_instructions": "Always filter to completed orders unless the user specifies otherwise."
+}
+$$)
+```
+
+All parameters are optional — `ca_extensions` only includes keys that have values, so you can start with just `verified_queries` and add the rest later.
+
 ### Note on documentation persistence (persist_docs)
 At this time, dbt-driven documentation persistence for Semantic Views (`persist_docs`) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
 
