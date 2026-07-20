@@ -105,6 +105,53 @@ CREATE OR REPLACE SEMANTIC VIEW <name>
 
 We plan to revisit `persist_docs` support as upstream capabilities evolve.
 
+### YAML-only features in DDL (time_dimensions, filters, data_type)
+Snowflake's [YAML vs. DDL comparison](https://docs.snowflake.com/en/user-guide/views-semantic/yaml-vs-ddl) notes a few semantic-view features that can be expressed in the YAML semantic-model spec but **not** in plain `CREATE SEMANTIC VIEW` DDL:
+
+- **`time_dimensions`** — a distinct category for date/timestamp columns (DDL only has generic dimensions).
+- **Standalone `filters`** — named, table-level filter expressions consumed by Cortex Analyst.
+- **`data_type`** — explicit column data-type declarations.
+
+In Snowflake these fields live in the Cortex Analyst ("CA") extension, which a DDL-created view can carry through the `WITH EXTENSION (CA=$$ ...json... $$)` clause. Rather than hand-writing that escaped JSON, the `ca_yaml_features` macro lets you declare these fields as structured dicts and generates the clause for you.
+
+**Parameters** (each entry is a dict routed by its `table` key; only keys with a value are emitted):
+
+| Argument | Entry shape |
+|----------|-------------|
+| `time_dimensions` | `{table, name, expr, data_type?, synonyms?, sample_values?, description?}` |
+| `filters` | `{table, name, expr, description?, synonyms?}` |
+| `dimensions` | `{table, name, expr?, data_type, synonyms?, description?}` (use to declare an explicit `data_type` on a regular dimension) |
+
+**Inline usage** — append the macro to your model body:
+```sql
+{{ config(materialized='semantic_view') }}
+TABLES(orders AS {{ ref('orders') }})
+DIMENSIONS(orders.status AS status)
+METRICS(orders.total AS SUM(orders.amount))
+{{ dbt_semantic_view.ca_yaml_features(
+    time_dimensions=[{'table': 'orders', 'name': 'order_ts', 'expr': 'ORDER_TS', 'data_type': 'TIMESTAMP_NTZ'}],
+    filters=[{'table': 'orders', 'name': 'recent', 'expr': 'order_ts > dateadd(day, -30, current_date)'}],
+    dimensions=[{'table': 'orders', 'name': 'amount', 'expr': 'AMOUNT', 'data_type': 'NUMBER(38,2)'}]
+) }}
+```
+
+**Config-driven usage** — pass the same lists via config keys (`time_dimensions`, `ca_filters`, `ca_dimensions`) and the materialization appends the clause automatically:
+```sql
+{{ config(
+    materialized='semantic_view',
+    time_dimensions=[{'table': 'orders', 'name': 'order_ts', 'expr': 'ORDER_TS', 'data_type': 'TIMESTAMP_NTZ'}],
+    ca_filters=[{'table': 'orders', 'name': 'recent', 'expr': 'order_ts > dateadd(day, -30, current_date)'}],
+    ca_dimensions=[{'table': 'orders', 'name': 'amount', 'expr': 'AMOUNT', 'data_type': 'NUMBER(38,2)'}]
+) }}
+TABLES(orders AS {{ ref('orders') }})
+DIMENSIONS(orders.status AS status)
+METRICS(orders.total AS SUM(orders.amount))
+```
+
+> **Notes**
+> - The config-driven form cannot be combined with a hand-written `WITH EXTENSION` clause in the same model (a single CA extension is allowed); doing so raises a compiler error. Use the inline macro if you need to compose with other CA content.
+> - These fields are metadata consumed by Cortex Analyst. Per Snowflake's docs, on the semantic SQL read path the compiler infers types regardless of a declared `data_type`.
+
 ### Development
 - Python 3.9+ recommended
 - Use a venv: `python3 -m venv .venv && source .venv/bin/activate`

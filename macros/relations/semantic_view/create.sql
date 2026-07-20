@@ -64,6 +64,24 @@
       identifier=identifier, schema=schema, database=database,
       type='view') -%}
 
+  {#- Bring YAML-only features (time_dimensions, filters, data_type) into the
+      DDL body via a generated `WITH EXTENSION (CA=...)` clause. Runs before the
+      COPY GRANTS append so COPY GRANTS stays last. -#}
+  {%- set time_dimensions = config.get('time_dimensions', default=[]) -%}
+  {%- set ca_filters = config.get('ca_filters', default=[]) -%}
+  {%- set ca_dimensions = config.get('ca_dimensions', default=[]) -%}
+  {%- if time_dimensions or ca_filters or ca_dimensions -%}
+    {%- if 'with extension' in (sql | lower) -%}
+      {{ exceptions.raise_compiler_error(
+          "ca_yaml_features config (time_dimensions / ca_filters / ca_dimensions) cannot be combined "
+          ~ "with a hand-written WITH EXTENSION clause in the model body. Use the ca_yaml_features() "
+          ~ "macro inline instead so a single CA extension is produced.") }}
+    {%- endif -%}
+    {%- set ca_clause = dbt_semantic_view.ca_yaml_features(
+        time_dimensions=time_dimensions, filters=ca_filters, dimensions=ca_dimensions) -%}
+    {%- set sql = (sql | trim) ~ '\n' ~ ca_clause -%}
+  {%- endif -%}
+
   {%- if copy_grants -%}
     {%- set sql = dbt_semantic_view.append_copy_grants_if_missing(sql) -%}
   {%- endif -%}
