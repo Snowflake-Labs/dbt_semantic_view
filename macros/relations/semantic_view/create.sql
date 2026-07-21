@@ -80,6 +80,27 @@
   {%- set copy_grants         = config.get('copy_grants',         default=false) -%}
   {%- set create_or_alter     = config.get('create_or_alter',     default=false) -%}
   {%- set sv_materializations = config.get('sv_materializations', default=none)  -%}
+  {%- set max_staleness       = config.get('max_staleness',       default=none)  -%}
+
+  {# sv_materializations requires MAX_STALENESS #}
+  {%- if sv_materializations is not none -%}
+    {%- if max_staleness is none and 'max_staleness' not in (sql | lower) -%}
+      {{ exceptions.raise_compiler_error(
+          "sv_materializations requires MAX_STALENESS. Set max_staleness in config() "
+          ~ "or include MAX_STALENESS in the model SQL body."
+      ) }}
+    {%- endif -%}
+  {%- endif -%}
+
+  {# Inject max_staleness from config into the SQL body #}
+  {%- if max_staleness is not none -%}
+    {%- if 'max_staleness' in (sql | lower) -%}
+      {{ exceptions.raise_compiler_error(
+          "max_staleness is defined in both config() and the model SQL body. Remove one."
+      ) }}
+    {%- endif -%}
+    {%- set sql = sql ~ "\nMAX_STALENESS = '" ~ max_staleness ~ "'" -%}
+  {%- endif -%}
 
   {%- set target_relation = api.Relation.create(
       identifier=identifier, schema=schema, database=database,

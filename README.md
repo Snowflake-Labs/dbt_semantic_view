@@ -99,6 +99,7 @@ All config options are set via `{{ config(...) }}` at the top of your model file
 |---|---|---|---|
 | `copy_grants` | bool | `false` | Preserve grants when the view is replaced |
 | `create_or_alter` | bool | `false` | Use `CREATE OR ALTER` instead of `CREATE OR REPLACE` — non-destructive, preserves materializations and grants across runs |
+| `max_staleness` | string | none | Inject a `MAX_STALENESS = '<value>'` clause — required when `sv_materializations` is set; mutually exclusive with a `MAX_STALENESS` clause in the model SQL body |
 | `sv_materializations` | string (YAML) | none | Declarative materialization spec; see below |
 
 `copy_grants` only applies to `CREATE OR REPLACE`. Snowflake does not support `COPY GRANTS` with `CREATE OR ALTER`.
@@ -119,53 +120,41 @@ METRICS(fact.revenue AS SUM(fact.revenue_amount))
 
 Declares one or more materializations on the semantic view. On every `dbt run` the package calls `SYSTEM$MANAGE_SEMANTIC_VIEW_MATERIALIZATIONS_FROM_YAML`, which diffs the desired state against the current state and only adds, updates, or drops what changed.
 
-The value is a YAML string matching the format accepted by the stored procedure:
+We highly recommend setting `create_or_alter=true` whenever you use `sv_materializations`. Without it, the model uses `CREATE OR REPLACE`, which drops and recreates the semantic view — and every materialization on it — on each run.
+
+`MAX_STALENESS` is required when using `sv_materializations`. You can set it via the `max_staleness` config key (recommended) or by including the clause directly in the model SQL body.
+
+The simplest example:
 
 ```sql
 {{ config(
     materialized='semantic_view',
     create_or_alter=true,
+    max_staleness='1 hour',
     sv_materializations="""
 materializations:
-  - name: by_region_date
+  - name: by_region
     warehouse: MY_WAREHOUSE
     dimensions:
       - table: fact
         name: region
-      - table: fact
-        name: date
     metrics:
       - table: fact
         name: revenue
-    filter_clause: "WHERE (fact.date >= '2020-01-01')"  # optional: mutable filter — planner rewrites
-                                                         #   queries whose filter matches or is stricter
-    immutable_where: "date < '2024-01-01'"               # optional: freeze historical rows permanently
-                                                         #   out of refresh; predicate columns must be
-                                                         #   included in this materialization's dimensions
-    refresh_mode: AUTO                       # optional: AUTO (default) | INCREMENTAL | FULL
 """
 ) }}
 
 TABLES(fact AS {{ ref('fact_sales') }})
-DIMENSIONS(fact.region as region, fact.date as date)
+DIMENSIONS(fact.region as region)
 METRICS(fact.revenue AS SUM(fact.revenue_amount))
-MAX_STALENESS = '1 hour'
 ```
 
-Use `filter_clause` for a mutable materialization filter. The value is passed through to Snowflake's
-`ADD MATERIALIZATION` statement, so include the `WHERE (...)` keyword and predicate text. Do not use a
-top-level YAML key named `where`.
-
-Use `immutable_where` for a frozen historical region. It is mutually exclusive with `filter_clause` for a
-single materialization. The predicate should reference the materialization output column name, not a
-qualified source expression, and that column must be part of the materialization's dimensions.
-
-When you need Jinja expressions inside the YAML (e.g. to inject a warehouse from the dbt profile or an environment variable), use a `{% set %}` block to build the string first:
+When you need Jinja expressions inside the YAML (e.g. to inject the warehouse from the dbt profile or an environment variable), use a `{% set %}` block to build the string first:
 
 ```sql
 {%- set sv_mats_yaml -%}
 materializations:
-  - name: by_region_date
+  - name: by_region
     warehouse: {{ target.warehouse }}
     dimensions:
       - table: fact
@@ -178,6 +167,7 @@ materializations:
 {{ config(
     materialized='semantic_view',
     create_or_alter=true,
+    max_staleness='1 hour',
     sv_materializations=sv_mats_yaml
 ) }}
 
@@ -186,11 +176,44 @@ DIMENSIONS(fact.region as region)
 METRICS(fact.revenue AS SUM(fact.revenue_amount))
 ```
 
+**Optional: `filter_clause`** — restrict which rows the materialization pre-computes. The query planner uses the materialization when a query's filter matches or is stricter. Include the `WHERE (...)` keyword:
+
+```yaml
+    filter_clause: "WHERE (fact.date >= '2020-01-01')"
+```
+
+Do not use a top-level YAML key named `where` — it is not supported.
+
+**Optional: `immutable_where`** — permanently exclude rows from refresh (e.g. rows that will never change). Mutually exclusive with `filter_clause` for a single materialization. The predicate must reference the materialization output column name (not a qualified source expression), and that column must be included in the materialization's dimensions:
+
+```yaml
+    immutable_where: "date < '2024-01-01'"
+```
+
+**Optional: `refresh_mode`** — `AUTO` (default) | `INCREMENTAL` | `FULL`. Note: this field is silently ignored by `SYSTEM$MANAGE_SEMANTIC_VIEW_MATERIALIZATIONS_FROM_YAML` — `REFRESH_MODE` is a DDL-only parameter and is not part of the SP's YAML schema. Snowflake defaults to `AUTO` (incremental where possible). To set a specific refresh mode, use `ALTER SEMANTIC VIEW ... ADD MATERIALIZATION ... REFRESH_MODE = FULL AS DIMENSIONS ... METRICS ...` directly.
+
 To set `LOG_EVENT_LEVEL` on materializations (e.g. for event table alerting), use a `post_hook`:
 
 ```sql
 post_hook=["ALTER SEMANTIC VIEW {{ this }} ALTER MATERIALIZATION my_mat SET LOG_EVENT_LEVEL = 'INFO'"]
 ```
+
+#### Built-in materialization tests
+
+The package ships two generic dbt tests you can attach to any semantic view model to verify that materializations are in place and healthy:
+
+```yaml
+models:
+  - name: my_semantic_view
+    tests:
+      - dbt_semantic_view.materialization_exists:
+          materialization_name: my_mat
+      - dbt_semantic_view.materialization_is_active:
+          materialization_name: my_mat
+```
+
+- **`materialization_exists`** — fails if the named materialization is absent from the semantic view.
+- **`materialization_is_active`** — fails if the materialization is absent or suspended.
 
 ### Note on documentation persistence (persist_docs)
 At this time, dbt-driven documentation persistence for Semantic Views (`persist_docs`) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
