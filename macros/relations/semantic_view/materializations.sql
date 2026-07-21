@@ -44,6 +44,8 @@
                                                                   #   and date_col must be a materialized
                                                                   #   dimension
         refresh_mode: AUTO                            # optional: AUTO (default) | INCREMENTAL | FULL
+                                                      # NOTE: silently ignored by the SP — refresh_mode
+                                                      # is a DDL-only parameter; Snowflake always uses AUTO
 #}
 {% macro snowflake__sync_sv_materializations(sv_fqn, yaml_spec) %}
   {% call statement('sync_sv_materializations', fetch_result=False) -%}
