@@ -42,7 +42,7 @@ models:
   +bind: false
   +persist_docs:
     relation: true
-    column: true
+    columns: true
 
 on-run-start:
   - "{{ create_base_table2() }}"
