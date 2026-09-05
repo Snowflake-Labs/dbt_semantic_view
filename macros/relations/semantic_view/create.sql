@@ -51,6 +51,31 @@
 {%- endmacro %}
 
 
+{% macro append_comment_if_missing(sql, comment) -%}
+  {%- if not comment -%}
+    {{ sql }}
+  {%- else -%}
+    {%- set s = (sql | trim) -%}
+    {%- set had_semicolon = (s[-1:] == ';') -%}
+    {%- if had_semicolon -%}
+      {%- set s = (s[:-1] | trim) -%}
+    {%- endif -%}
+
+    {# detect existing COMMENT at the end, case-insensitive #}
+    {%- set has_comment = 'comment=' in (s | lower) -%}
+
+    {%- if has_comment -%}
+      {%- set out = s -%}
+    {%- else -%}
+      {# escape single quotes so a description cannot terminate the string literal #}
+      {%- set out = s ~ "\nCOMMENT='" ~ (comment | replace("'", "''")) ~ "'" -%}
+    {%- endif -%}
+
+    {{- out -}}
+  {%- endif -%}
+{%- endmacro %}
+
+
 {% macro append_copy_grants_if_missing(sql) -%}
   {%- set s = (sql | trim) -%}
   {%- set had_semicolon = (s[-1:] == ';') -%}
@@ -81,6 +106,13 @@
   {%- set create_or_alter     = config.get('create_or_alter',     default=false) -%}
   {%- set sv_materializations = config.get('sv_materializations', default=none)  -%}
   {%- set max_staleness       = config.get('max_staleness',       default=none)  -%}
+  {%- set persist_docs        = config.get('persist_docs',        default={})    -%}
+
+  {# relation-level persist_docs: use the model description as the SV COMMENT #}
+  {%- set relation_comment = none -%}
+  {%- if persist_docs.get('relation', false) and model.description -%}
+    {%- set relation_comment = model.description -%}
+  {%- endif -%}
 
   {# sv_materializations requires MAX_STALENESS #}
   {%- if sv_materializations is not none -%}
@@ -92,19 +124,24 @@
     {%- endif -%}
   {%- endif -%}
 
-  {# Inject max_staleness from config into the SQL body #}
-  {%- if max_staleness is not none -%}
-    {%- if 'max_staleness' in (sql | lower) -%}
-      {{ exceptions.raise_compiler_error(
-          "max_staleness is defined in both config() and the model SQL body. Remove one."
-      ) }}
-    {%- endif -%}
-    {%- set sql = sql ~ "\nMAX_STALENESS = '" ~ max_staleness ~ "'" -%}
+  {%- if max_staleness is not none and 'max_staleness' in (sql | lower) -%}
+    {{ exceptions.raise_compiler_error(
+        "max_staleness is defined in both config() and the model SQL body. Remove one."
+    ) }}
   {%- endif -%}
 
   {%- set target_relation = api.Relation.create(
       identifier=identifier, schema=schema, database=database,
       type='view') -%}
+
+  {# Trailing clauses must follow Snowflake's DDL order: COMMENT, MAX_STALENESS, COPY GRANTS #}
+  {%- if relation_comment -%}
+    {%- set sql = dbt_semantic_view.append_comment_if_missing(sql, relation_comment) -%}
+  {%- endif -%}
+
+  {%- if max_staleness is not none -%}
+    {%- set sql = sql ~ "\nMAX_STALENESS = '" ~ max_staleness ~ "'" -%}
+  {%- endif -%}
 
   {%- if copy_grants and not create_or_alter -%}
     {%- set sql = dbt_semantic_view.append_copy_grants_if_missing(sql) -%}
