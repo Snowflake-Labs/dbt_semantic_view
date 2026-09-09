@@ -215,6 +215,64 @@ models:
 - **`materialization_exists`** — fails if the named materialization is absent from the semantic view.
 - **`materialization_is_active`** — fails if the materialization is absent or suspended.
 
+### Unit testing Semantic Views
+
+dbt's [`unit_tests`](https://docs.getdbt.com/docs/build/unit-tests) can fixture and verify a model that references a Semantic View. This requires a small amount of one-time project setup.
+
+1) Route `ref()`/`source()` through the package's unit-test-aware wrappers. Add a project-level dispatch override in `dbt_project.yml`:
+```yaml
+dispatch:
+  - macro_namespace: dbt
+    search_order: ['dbt_semantic_view', 'dbt']
+```
+and a macro that overrides the builtins for your project:
+```sql
+{% macro ref() %}
+  {{ return(dbt_semantic_view.sv_aware_ref(varargs, kwargs)) }}
+{% endmacro %}
+
+{% macro source(source_name, table_name) %}
+  {{ return(dbt_semantic_view.sv_aware_source(source_name, table_name)) }}
+{% endmacro %}
+```
+
+2) Move the Semantic View's body into an `sv_def__<model_name>` macro, and have the model call it. This lets the unit test render the same definition inline instead of querying the real Semantic View:
+```sql
+{% macro sv_def__my_semantic_view() %}
+TABLES(t1 AS {{ ref('base_table') }}, t2 AS {{ source('my_source', 'base_table2') }})
+DIMENSIONS(t1.region AS region)
+METRICS(t1.revenue AS SUM(t1.revenue_amount))
+{% endmacro %}
+```
+```sql
+{{ config(materialized='semantic_view') }}
+{{ sv_def__my_semantic_view() }}
+```
+
+3) Write the unit test against a model that references the Semantic View — not against the Semantic View model itself. Fixture the Semantic View's underlying tables/sources, and dbt will splice `sv_def__my_semantic_view()` in as a CTE:
+```yaml
+unit_tests:
+  - name: test_revenue_by_region
+    model: model_that_selects_from_my_semantic_view
+    given:
+      - input: ref('base_table')
+        rows:
+          - {region: 'west', revenue_amount: 100}
+      - input: source('my_source', 'base_table2')
+        rows:
+          - {region: 'west', volume: 5}
+    expect:
+      rows:
+        - {REVENUE: 100}
+```
+
+4) Run it
+```
+dbt test --select test_revenue_by_region
+```
+
+**Limitation:** this only supports models whose compiled SQL doesn't already open with its own `WITH` clause — dbt merges fixture CTEs into an existing `WITH` rather than prepending a new one, and the splice macro doesn't parse that merged form. A model like this raises a clear compiler error instead of producing incorrect SQL.
+
 ### Note on documentation persistence (persist_docs)
 At this time, dbt-driven documentation persistence for Semantic Views (`persist_docs`) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
 

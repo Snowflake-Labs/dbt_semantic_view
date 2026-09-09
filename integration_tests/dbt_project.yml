@@ -34,6 +34,10 @@ flags:
   send_anonymous_usage_stats: False
   use_colors: True
 
+dispatch:
+  - macro_namespace: dbt
+    search_order: ["dbt_semantic_view", "dbt"]
+
 seeds:
   +schema: raw_data
   +quote_columns: false
