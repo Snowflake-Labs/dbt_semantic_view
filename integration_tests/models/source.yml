@@ -19,4 +19,9 @@ sources:
     schema: "{{ target.schema }}"
     tables:
       - name: base_table2
+        columns:
+          - name: id
+            description: "Row identifier"
+          - name: value
+            description: "Generic numeric value column"
       - name: raw_semantic_view

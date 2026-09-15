@@ -27,6 +27,15 @@ models:
   - name: semantic_view_with_calc_name_copy_grants
     config:
       copy_grants: true
+  - name: base_table
+    description: "Base table used as a source for semantic views"
+    columns:
+      - name: id
+        description: "Row identifier"
+      - name: value
+        description: "Generic numeric value column"
+  - name: semantic_view_with_persist_docs
+    description: "Semantic view exercising both relation and column persist_docs"
   - name: semantic_view_with_materializations
     tests:
       - dbt_semantic_view.materialization_exists:
