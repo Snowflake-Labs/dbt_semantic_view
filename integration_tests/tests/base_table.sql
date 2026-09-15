@@ -13,9 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-{{ config(materialized='test') }}
+{{ config(materialized='test', enabled=not flags.EMPTY) }}
 
 -- Passes when the seed has rows; fails if empty
+-- Skipped with --empty because the flag rewrites ref() to return 0 rows by design
 select 'my_seed is empty' as error_message
 where not exists (
   select 1 from {{ ref('my_seed') }}

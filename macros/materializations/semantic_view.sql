@@ -20,9 +20,6 @@
 
     {% set target_relation = this.incorporate(type='view') %}
 
-    {# TODO: enable persist_docs after semantic_view is supported as a SnowflakeRelationType #}
-    {# {% do persist_docs(target_relation, model, for_columns=false) %} #}
-
     {% do unset_query_tag(original_query_tag) %}
 
     {% do return({'relations': [target_relation]}) %}

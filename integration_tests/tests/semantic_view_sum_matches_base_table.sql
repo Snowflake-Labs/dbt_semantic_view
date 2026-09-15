@@ -19,7 +19,7 @@
 with base_sum as (
   select sum(value) as v from {{ ref('base_table') }}
 ), sv as (
-  select * from semantic_view({{ ref('semantic_view_basic') }} metrics total_rows)
+  select * from semantic_view({{ dbt_semantic_view.sv_ref('semantic_view_basic') }} metrics total_rows)
 )
 select 'semantic view metric does not match base_table sum' as error_message
 from base_sum, sv

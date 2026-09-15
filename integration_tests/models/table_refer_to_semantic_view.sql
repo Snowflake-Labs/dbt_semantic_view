@@ -16,6 +16,6 @@
 {{ config(materialized='table') }}
 
 select *
-from semantic_view({{ ref('semantic_view_basic') }} metrics total_rows)
+from semantic_view({{ dbt_semantic_view.sv_ref('semantic_view_basic') }} metrics total_rows)
 
 
