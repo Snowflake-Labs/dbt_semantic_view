@@ -19,7 +19,7 @@ config-version: 2
 # name or the intended use of these models
 name: 'dbt_semantic_view'
 version: '1.0.1'
-require-dbt-version: [">=1.0.0", "<2.0.0"]
+require-dbt-version: [">=1.0.0", "<3.0.0"]
 
 # This setting configures which "profile" dbt uses for this project.
 profile: 'dbt_semantic_view'
