@@ -25,6 +25,10 @@ test-paths: ["tests"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 
+dispatch:
+  - macro_namespace: dbt
+    search_order: [dbt_semantic_view, dbt]
+
 target-path: "target"
 clean-targets:
   - "target"
