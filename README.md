@@ -101,6 +101,7 @@ All config options are set via `{{ config(...) }}` at the top of your model file
 | `create_or_alter` | bool | `false` | Use `CREATE OR ALTER` instead of `CREATE OR REPLACE` — non-destructive, preserves materializations and grants across runs |
 | `max_staleness` | string | none | Inject a `MAX_STALENESS = '<value>'` clause — required when `sv_materializations` is set; mutually exclusive with a `MAX_STALENESS` clause in the model SQL body |
 | `sv_materializations` | string (YAML) | none | Declarative materialization spec; see below |
+| `persist_docs` | dict | `{}` | `{'relation': true}` adds the model's `description` as a `COMMENT` on the semantic view; see below |
 
 `copy_grants` only applies to `CREATE OR REPLACE`. Snowflake does not support `COPY GRANTS` with `CREATE OR ALTER`.
 
@@ -215,6 +216,34 @@ models:
 - **`materialization_exists`** — fails if the named materialization is absent from the semantic view.
 - **`materialization_is_active`** — fails if the materialization is absent or suspended.
 
+#### `persist_docs`
+
+Set `persist_docs={'relation': true}` to have the model's `description` written to the semantic view as a `COMMENT`:
+
+```sql
+{{ config(materialized='semantic_view', persist_docs={'relation': true}) }}
+```
+
+```yaml
+# schema.yml
+models:
+  - name: my_semantic_view
+    description: "This description becomes the semantic view COMMENT"
+```
+
+If the model SQL body already contains a `COMMENT=` clause, nothing is appended — the DDL in the model wins.
+
+Column-level `persist_docs` is not supported — semantic views expose DIMENSIONS, METRICS, and FACTS rather than columns. Use inline `COMMENT` syntax in the DDL for those:
+
+```
+CREATE OR REPLACE SEMANTIC VIEW <name>
+  TABLES ( ... COMMENT = '...' )
+  [ FACTS ( ... COMMENT = '...' ) ]
+  [ DIMENSIONS ( ... COMMENT = '...' ) ]
+  [ METRICS ( ... COMMENT = '...' ) ]
+  [ COMMENT = '...' ]
+```
+
 ### Unit testing Semantic Views
 
 dbt's [`unit_tests`](https://docs.getdbt.com/docs/build/unit-tests) can fixture and verify a model that references a Semantic View. This requires a small amount of one-time project setup.
@@ -272,21 +301,6 @@ dbt test --select test_revenue_by_region
 ```
 
 **Limitation:** this only supports models whose compiled SQL doesn't already open with its own `WITH` clause — dbt merges fixture CTEs into an existing `WITH` rather than prepending a new one, and the splice macro doesn't parse that merged form. A model like this raises a clear compiler error instead of producing incorrect SQL.
-
-### Note on documentation persistence (persist_docs)
-At this time, dbt-driven documentation persistence for Semantic Views (`persist_docs`) is not supported by this package. Enabling `persist_docs` and adding model or column descriptions will not affect Semantic Views.
-
-Inline `COMMENT` syntax within the Semantic View DDL is supported and will be applied by Snowflake. For example:
-```
-CREATE OR REPLACE SEMANTIC VIEW <name>
-  TABLES ( ... COMMENT = '...' )
-  [ FACTS ( ... COMMENT = '...' ) ]
-  [ DIMENSIONS ( ... COMMENT = '...' ) ]
-  [ METRICS ( ... COMMENT = '...' ) ]
-  [ COMMENT = '...' ]
-```
-
-We plan to revisit `persist_docs` support as upstream capabilities evolve.
 
 ### Development
 - Python 3.9+ recommended
