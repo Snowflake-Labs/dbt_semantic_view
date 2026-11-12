@@ -74,19 +74,39 @@
 {%- endmacro %}
 
 
+{% macro get_semantic_view_config(key, default=none) -%}
+{#-
+--  Read a package-specific config key, preferring `meta`.
+--
+--  dbt Fusion rejects unknown top-level config keys (UnusedConfigKey dbt1060),
+--  so the package's own keys go under `meta`. Top-level keys are still read
+--  for dbt Core projects that already set them there.
+--
+--  Args:
+--  - key: str - the config key
+--  - default: the value returned when the key is set in neither place
+-#}
+  {%- set meta = config.get('meta') or {} -%}
+  {%- if key in meta -%}
+    {{- return(meta[key]) -}}
+  {%- endif -%}
+  {{- return(config.get(key, default=default)) -}}
+{%- endmacro %}
+
+
 {% macro snowflake__create_or_replace_semantic_view() %}
   {%- set identifier = model['alias'] -%}
 
-  {%- set copy_grants         = config.get('copy_grants',         default=false) -%}
-  {%- set create_or_alter     = config.get('create_or_alter',     default=false) -%}
-  {%- set sv_materializations = config.get('sv_materializations', default=none)  -%}
-  {%- set max_staleness       = config.get('max_staleness',       default=none)  -%}
+  {%- set copy_grants         = config.get('copy_grants', default=false) -%}
+  {%- set create_or_alter     = dbt_semantic_view.get_semantic_view_config('create_or_alter', default=false) -%}
+  {%- set sv_materializations = dbt_semantic_view.get_semantic_view_config('sv_materializations', default=none) -%}
+  {%- set max_staleness       = dbt_semantic_view.get_semantic_view_config('max_staleness', default=none) -%}
 
   {# sv_materializations requires MAX_STALENESS #}
   {%- if sv_materializations is not none -%}
     {%- if max_staleness is none and 'max_staleness' not in (sql | lower) -%}
       {{ exceptions.raise_compiler_error(
-          "sv_materializations requires MAX_STALENESS. Set max_staleness in config() "
+          "sv_materializations requires MAX_STALENESS. Set max_staleness in config() (or meta) "
           ~ "or include MAX_STALENESS in the model SQL body."
       ) }}
     {%- endif -%}
@@ -96,7 +116,7 @@
   {%- if max_staleness is not none -%}
     {%- if 'max_staleness' in (sql | lower) -%}
       {{ exceptions.raise_compiler_error(
-          "max_staleness is defined in both config() and the model SQL body. Remove one."
+          "max_staleness is defined in both config() (or meta) and the model SQL body. Remove one."
       ) }}
     {%- endif -%}
     {%- set sql = sql ~ "\nMAX_STALENESS = '" ~ max_staleness ~ "'" -%}
