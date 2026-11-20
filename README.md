@@ -11,7 +11,7 @@ Professional dbt macros and integration tests for building, dropping, and renami
 ### At a glance
 - **Materialization**: `semantic_view`
 - **Warehouse**: Snowflake
-- **dbt Compatibility**: dbt 1.x
+- **dbt Compatibility**: dbt Core 1.x and dbt Fusion (set package options under `meta`, see [Config options](#config-options))
 - **Supports**: `CREATE OR ALTER`, `MAX_STALENESS`, and declarative materialization management
 
 ### Quickstart
@@ -93,7 +93,18 @@ from semantic_view(
 
 ### Config options
 
-All config options are set via `{{ config(...) }}` at the top of your model file.
+Set config options under `meta`, in `{{ config(...) }}` at the top of your model file, in a properties YAML file, or with `+meta` in `dbt_project.yml`:
+
+```sql
+{{ config(
+    materialized='semantic_view',
+    meta={'create_or_alter': true, 'max_staleness': '1 hour'}
+) }}
+```
+
+`create_or_alter`, `max_staleness` and `sv_materializations` are this package's own options. dbt Fusion rejects unknown top-level config keys (`UnusedConfigKey dbt1060`), so they must go under `meta` there. On dbt Core they can also be set at the top level, as in the examples below. If a key is set in both places, the `meta` value wins. `copy_grants` is a standard dbt-snowflake config and stays at the top level.
+
+> **Upgrading to dbt Fusion:** Fusion's autofix moves these keys under `meta`. Upgrade this package first: earlier versions only read the top-level keys, so after the move they silently fall back to their defaults (for `create_or_alter`, that means `CREATE OR REPLACE` on every run).
 
 | Option | Type | Default | Description |
 |---|---|---|---|
