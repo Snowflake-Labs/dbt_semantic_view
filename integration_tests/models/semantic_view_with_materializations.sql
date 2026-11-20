@@ -59,5 +59,5 @@ materializations:
 TABLES(t1 AS {{ ref('base_table') }})
 DIMENSIONS(t1.count as value)
 METRICS(t1.total_rows AS SUM(t1.count))
-MAX_STALENESS = '1 hour'
 COMMENT='semantic view with materialization for integration test'
+MAX_STALENESS = '1 hour'
