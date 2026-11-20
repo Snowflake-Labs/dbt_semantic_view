@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-{{ config(materialized='semantic_view') }}
+{{ config(materialized='semantic_view', static_analysis='off') }}
 TABLES(t1 AS {{ ref('base_table') }})
 DIMENSIONS(t1."COPY GRANTS" as value)
 METRICS(t1.total_rows AS SUM(t1."COPY GRANTS"))
